@@ -12,8 +12,9 @@ Pure C library providing deterministic state machines for network protocol analy
 - `include/netdiag.h` — Public opaque types, config structs, event enums, and common API (`netdiag_create`, `feed_input`, `next_event`, eBPF accessors).
 - `src/ping.c` — ICMP echo request/reply state machine (for ping emulation and analysis).
 - `src/arping.c` — ARP request/reply state machine (for arping emulation and analysis).
+- `src/traceroute.c` — Traceroute skeleton (UDP/ICMP time-exceeded, hop discovery).
 - `src/ebpf.c` or embedded data — Accessors for eBPF script sources (the scripts themselves live in a `bpf/` subdirectory as .o or source; library only provides const char* pointers or lengths).
-- Future: `src/traceroute.c`, `src/dnsdiag.c`, etc. as separate compilation units inside the same library or future sibling libs.
+- Future: `src/dnsdiag.c`, etc. as separate compilation units inside the same library or future sibling libs.
 
 ## Deliberate Absences (Invariants)
 - No `socket`, `send`, `recv`, `bind`, `ioctl`, `bpf` syscalls or wrappers.
@@ -34,6 +35,8 @@ All utilities emit events via a unified or per-utility `next_event` mechanism:
 - Future events for new utilities.
 
 Events use embedded arrays for payload safety in ring buffers.
+
+P1 additions: `get_stats()` (replies, timeouts, loss%, latency histogram summary), `*_event_to_string()` for logging/AI harnesses.
 
 ## Dialectic Testing
 Every protocol module ships with paired requester/responder test contexts that exchange raw packet buffers directly in memory. This verifies correctness without any network dependency and matches the pattern used across all sibling libraries (libdiscord, shaggy, librest, etc.).
@@ -59,7 +62,7 @@ This separation keeps the core library portable and pure while enabling powerful
 
 ## Relationship to Sibling Libraries
 - Inherits ADR 006 (syscall-free plumbing), ADR 002 (event-loop compatibility), ADR 003 (testing/fuzz/valgrind), ADR 004 (dialectic testing), ADR 010 (C interfaces) from the ecosystem.
-- Complements LuaJIT FFI work (arping.lua, bpftool.lua) by providing a C foundation that Lua code can call into.
+- Complements LuaJIT FFI work (arping.lua, bpftool.lua) by providing a C foundation that Lua code can call into. All public functions (create*, feed*, process, next_event, get_stats, event_to_string) are FFI-friendly (opaque pointers, simple scalars, no bitfields).
 - Can be used alongside librest/shaggy for reporting faults to central systems, or libharness for AI-driven analysis loops.
 
 ## Future Evolution

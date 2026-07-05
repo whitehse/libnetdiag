@@ -12,7 +12,6 @@ int main(void) {
 
     netdiag_event_t ev;
     int n = netdiag_next_event(ctx, &ev);
-    /* smoke just checks no crash and basic calls succeed */
     (void)n;
 
     netdiag_destroy(ctx);
@@ -26,6 +25,11 @@ int main(void) {
     arping_ctx *actx = arping_create(NETDIAG_ROLE_REQUESTER);
     assert(actx != NULL);
     arping_destroy(actx);
+
+    /* traceroute (P2) */
+    traceroute_ctx *tctx = traceroute_create(NETDIAG_ROLE_REQUESTER);
+    assert(tctx != NULL);
+    traceroute_destroy(tctx);
 
     /* eBPF */
     size_t cnt = netdiag_ebpf_script_count();
