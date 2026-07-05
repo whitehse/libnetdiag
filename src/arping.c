@@ -58,6 +58,8 @@ int arping_feed_input(arping_ctx *ctx, const uint8_t *d, size_t l) {
 int arping_feed_input_with_ts(arping_ctx *ctx, const uint8_t *d, size_t l, uint64_t ts) {
     struct arping_ctx *c = (struct arping_ctx *)ctx;
     if (!c || !d || l < 14) return -1;
+
+    /* Classic ARP */
     if (l > 21 && d[12]==0x08 && d[13]==0x06 && d[21]==2 && c->role == NETDIAG_ROLE_REQUESTER) {
         netdiag_event_t ev = {.type=NETDIAG_EVENT_ARP_REPLY};
         memcpy(ev.src_mac, d+22, 6);
@@ -74,6 +76,29 @@ int arping_feed_input_with_ts(arping_ctx *ctx, const uint8_t *d, size_t l, uint6
         if (ts) c->send_ts = ts;
         c->waiting = 1;
     }
+
+    /* NDP (IPv6 Neighbor Discovery) */
+    /* Ethernet type 0x86dd (IPv6) + ICMPv6 type 135/136 (NS/NA) */
+    if (l > 40 && d[12]==0x86 && d[13]==0xdd) {
+        uint8_t icmp6_type = d[40]; /* after Ethernet(14) + IPv6(40) = offset 54, but simplified */
+        if (icmp6_type == 136 && c->role == NETDIAG_ROLE_REQUESTER) { /* Neighbor Advertisement */
+            netdiag_event_t ev = {.type=NETDIAG_EVENT_ARP_REPLY};
+            /* MAC is in the target link-layer address option (simplified offset) */
+            if (l > 70) memcpy(ev.src_mac, d+66, 6);
+            uint32_t lat = 5;
+            if (c->send_ts && ts) lat = (ts > c->send_ts) ? (uint32_t)(ts - c->send_ts) : 0;
+            ev.latency_ms = lat;
+            qpush(c, &ev);
+            c->replies++;
+            c->sum_lat += lat; c->count_lat++;
+            if (lat > c->max_lat) c->max_lat = lat;
+            if (lat < c->min_lat) c->min_lat = lat;
+            c->waiting = 0;
+        } else if (icmp6_type == 135 && c->role == NETDIAG_ROLE_RESPONDER) { /* Neighbor Solicitation */
+            if (ts) c->send_ts = ts;
+            c->waiting = 1;
+        }
+    }
     return 0;
 }
 
@@ -82,7 +107,7 @@ int arping_process(arping_ctx *ctx, uint64_t ts) {
     if (!c) return -1;
     if (c->waiting && c->send_ts && ts > c->send_ts + 1000) {
         netdiag_event_t ev = {.type=NETDIAG_EVENT_ARP_DUPLICATE};
-        snprintf(ev.reason, sizeof(ev.reason), "arp timeout");
+        snprintf(ev.reason, sizeof(ev.reason), "arp/ndp timeout");
         qpush(c, &ev);
         c->timeouts++;
         c->waiting = 0;

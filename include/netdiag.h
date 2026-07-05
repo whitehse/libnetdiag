@@ -98,7 +98,7 @@ int arping_next_event(arping_ctx *ctx, netdiag_event_t *event);
 int arping_get_stats(arping_ctx *ctx, netdiag_stats_t *stats);
 const char *arping_event_to_string(const netdiag_event_t *ev, char *buf, size_t max);
 
-/* Traceroute skeleton (P2) */
+/* Traceroute skeleton (P2) + MTR helpers */
 typedef struct traceroute_ctx traceroute_ctx;
 
 traceroute_ctx *traceroute_create(netdiag_role_t role);
@@ -111,6 +111,10 @@ int traceroute_process(traceroute_ctx *ctx, uint64_t now_ms);
 int traceroute_next_event(traceroute_ctx *ctx, netdiag_event_t *event);
 int traceroute_get_stats(traceroute_ctx *ctx, netdiag_stats_t *stats);
 const char *traceroute_event_to_string(const netdiag_event_t *ev, char *buf, size_t max);
+
+/* MTR helpers */
+void traceroute_record_hop(traceroute_ctx *ctx, int hop, int success, uint32_t latency_ms);
+int traceroute_hop_loss_pct(traceroute_ctx *ctx, int hop);
 
 /* DNS diagnostic skeleton (P2) */
 typedef struct dnsdiag_ctx dnsdiag_ctx;

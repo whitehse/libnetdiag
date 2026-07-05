@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 #define MAX_Q 32
+#define MAX_HOPS 32
 struct traceroute_ctx {
     netdiag_role_t role;
     size_t qsz;
@@ -14,6 +15,11 @@ struct traceroute_ctx {
     uint64_t send_ts;
     int waiting;
     uint32_t replies, timeouts, dups, sum_lat, max_lat, min_lat, count_lat;
+    /* MTR-style per-hop stats */
+    uint32_t hop_replies[MAX_HOPS];
+    uint32_t hop_timeouts[MAX_HOPS];
+    uint32_t hop_sum_lat[MAX_HOPS];
+    uint32_t hop_count[MAX_HOPS];
 };
 
 static void qinit(struct traceroute_ctx *c, size_t s) {
@@ -21,6 +27,10 @@ static void qinit(struct traceroute_ctx *c, size_t s) {
     c->head = c->tail = c->cnt = 0; c->waiting = 0;
     c->replies = c->timeouts = c->dups = c->sum_lat = c->max_lat = c->count_lat = 0;
     c->min_lat = ~0U;
+    memset(c->hop_replies, 0, sizeof(c->hop_replies));
+    memset(c->hop_timeouts, 0, sizeof(c->hop_timeouts));
+    memset(c->hop_sum_lat, 0, sizeof(c->hop_sum_lat));
+    memset(c->hop_count, 0, sizeof(c->hop_count));
 }
 
 static int qpush(struct traceroute_ctx *c, const netdiag_event_t *e) {
@@ -59,6 +69,7 @@ int traceroute_feed_input_with_ts(traceroute_ctx *ctx, const uint8_t *d, size_t 
     if (!c || !d) return -1;
     (void)l;
     if (ts) c->send_ts = ts;
+    /* Placeholder: real ICMP time-exceeded / port-unreachable + hop extraction */
     return 0;
 }
 
@@ -90,4 +101,25 @@ int traceroute_get_stats(traceroute_ctx *ctx, netdiag_stats_t *s) {
 
 const char *traceroute_event_to_string(const netdiag_event_t *ev, char *buf, size_t max) {
     return netdiag_event_to_string(ev, buf, max);
+}
+
+/* MTR-style helper: record a probe result for a given hop (0-based) */
+void traceroute_record_hop(traceroute_ctx *ctx, int hop, int success, uint32_t latency_ms) {
+    struct traceroute_ctx *c = (struct traceroute_ctx *)ctx;
+    if (!c || hop < 0 || hop >= MAX_HOPS) return;
+    if (success) {
+        c->hop_replies[hop]++;
+        c->hop_sum_lat[hop] += latency_ms;
+        c->hop_count[hop]++;
+    } else {
+        c->hop_timeouts[hop]++;
+    }
+}
+
+/* MTR-style helper: get loss % for a hop */
+int traceroute_hop_loss_pct(traceroute_ctx *ctx, int hop) {
+    struct traceroute_ctx *c = (struct traceroute_ctx *)ctx;
+    if (!c || hop < 0 || hop >= MAX_HOPS) return -1;
+    uint32_t total = c->hop_replies[hop] + c->hop_timeouts[hop];
+    return total ? (int)((c->hop_timeouts[hop] * 100) / total) : 0;
 }

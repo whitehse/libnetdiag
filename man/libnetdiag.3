@@ -1,0 +1,23 @@
+.TH LIBNETDIAG 3 "July 2026" "libnetdiag 0.2" "Library Functions Manual"
+.SH NAME
+libnetdiag \- pure C syscall-free network diagnostics state machine library
+.SH SYNOPSIS
+.B #include <netdiag.h>
+.PP
+.B ping_ctx *ping_create(netdiag_role_t role);
+.br
+.B int ping_feed_input_with_ts(ping_ctx *ctx, const uint8_t *data, size_t len, uint64_t now_ms);
+.br
+.B int ping_process(ping_ctx *ctx, uint64_t now_ms);
+.br
+.B int ping_next_event(ping_ctx *ctx, netdiag_event_t *event);
+.br
+.B int ping_get_stats(ping_ctx *ctx, netdiag_stats_t *stats);
+.SH DESCRIPTION
+libnetdiag provides deterministic, callback-free, syscall-free state machines for emulating and analyzing common network diagnostics tools (ping, arping, traceroute, DNS) on edge devices.
+.PP
+All I/O, timestamps, and policy decisions remain in the calling application.
+.SH SEE ALSO
+.BR netdiag(3),
+.BR ping(1),
+.BR arping(8)

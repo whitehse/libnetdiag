@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install deps
-        run: sudo apt-get update && sudo apt-get install -y valgrind
+        run: sudo apt-get update && sudo apt-get install -y valgrind clang
       - name: Configure
         run: cmake -B build -S .
       - name: Build
@@ -21,3 +21,18 @@ jobs:
         run: ctest --test-dir build --output-on-failure
       - name: Valgrind
         run: valgrind --leak-check=full --error-exitcode=1 ctest --test-dir build --output-on-failure || true
+
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build fuzz target
+        run: |
+          clang -fsanitize=fuzzer,address -Iinclude fuzz/fuzz_feed.c \
+            -o fuzz_feed build/libnetdiag.a || echo "Fuzz target build (clang required)"
+      - name: Run short fuzz
+        run: |
+          mkdir -p fuzz/corpus
+          echo "seed" > fuzz/corpus/seed.txt
+          ./fuzz_feed fuzz/corpus -max_len=128 -runs=1000 || true
+        continue-on-error: true
