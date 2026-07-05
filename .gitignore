@@ -1,0 +1,34 @@
+# Build directories
+build/
+cmake-build-*/
+
+# Compiled object files
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+
+# CMake generated
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+Makefile
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# eBPF / other
+*.o
+*.ll
+*.bc
+
+# Test artifacts
+tests/*.log
