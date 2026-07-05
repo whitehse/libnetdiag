@@ -112,6 +112,20 @@ int traceroute_next_event(traceroute_ctx *ctx, netdiag_event_t *event);
 int traceroute_get_stats(traceroute_ctx *ctx, netdiag_stats_t *stats);
 const char *traceroute_event_to_string(const netdiag_event_t *ev, char *buf, size_t max);
 
+/* DNS diagnostic skeleton (P2) */
+typedef struct dnsdiag_ctx dnsdiag_ctx;
+
+dnsdiag_ctx *dnsdiag_create(netdiag_role_t role);
+dnsdiag_ctx *dnsdiag_create_with_config(netdiag_role_t role, const netdiag_config_t *config);
+void dnsdiag_destroy(dnsdiag_ctx *ctx);
+void dnsdiag_reset(dnsdiag_ctx *ctx);
+int dnsdiag_feed_input(dnsdiag_ctx *ctx, const uint8_t *data, size_t len);
+int dnsdiag_feed_input_with_ts(dnsdiag_ctx *ctx, const uint8_t *data, size_t len, uint64_t now_ms);
+int dnsdiag_process(dnsdiag_ctx *ctx, uint64_t now_ms);
+int dnsdiag_next_event(dnsdiag_ctx *ctx, netdiag_event_t *event);
+int dnsdiag_get_stats(dnsdiag_ctx *ctx, netdiag_stats_t *stats);
+const char *dnsdiag_event_to_string(const netdiag_event_t *ev, char *buf, size_t max);
+
 #ifdef __cplusplus
 }
 #endif

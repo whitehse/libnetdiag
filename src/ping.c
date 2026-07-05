@@ -58,7 +58,8 @@ int ping_feed_input(ping_ctx *ctx, const uint8_t *d, size_t l) {
 int ping_feed_input_with_ts(ping_ctx *ctx, const uint8_t *d, size_t l, uint64_t ts) {
     struct ping_ctx *c = (struct ping_ctx *)ctx;
     if (!c || !d || l < 8) return -1;
-    if (d[0] == 0 && c->role == NETDIAG_ROLE_REQUESTER) {
+    /* IPv4 ICMP + IPv6 ICMPv6 echo */
+    if ((d[0] == 0 || d[0] == 129) && c->role == NETDIAG_ROLE_REQUESTER) {
         netdiag_event_t ev = {.type = NETDIAG_EVENT_PING_REPLY, .seq = (d[6]<<8)|d[7]};
         uint32_t lat = 5;
         if (c->send_ts && ts) lat = (ts > c->send_ts) ? (uint32_t)(ts - c->send_ts) : 0;
@@ -69,7 +70,7 @@ int ping_feed_input_with_ts(ping_ctx *ctx, const uint8_t *d, size_t l, uint64_t 
         if (lat > c->max_lat) c->max_lat = lat;
         if (lat < c->min_lat) c->min_lat = lat;
         c->waiting = 0;
-    } else if (d[0] == 8 && c->role == NETDIAG_ROLE_RESPONDER) {
+    } else if ((d[0] == 8 || d[0] == 128) && c->role == NETDIAG_ROLE_RESPONDER) {
         c->last_seq = (d[6]<<8)|d[7];
         if (ts) c->send_ts = ts;
         c->waiting = 1;
