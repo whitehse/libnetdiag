@@ -11,7 +11,7 @@ else()
     add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 endif()
 
-add_library(netdiag STATIC src/netdiag.c src/ping.c src/arping.c src/traceroute.c src/dnsdiag.c)
+add_library(netdiag STATIC src/netdiag.c src/ping.c src/arping.c src/traceroute.c src/dnsdiag.c src/arprecon.c)
 
 target_include_directories(netdiag PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

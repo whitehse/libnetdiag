@@ -27,8 +27,6 @@ Kali Linux provides an extensive suite of network diagnostics, reconnaissance, a
 - `fping` (parallel ping sweeps)
 
 **Deep Analysis & Packet-Level (complements feed_input parsers):**
-- `wireshark`/`tshark` (full protocol dissection, filters, VoIP/HTTP/etc. analysis, export)
-- `tcpdump` (capture/filtering for feeding into libnetdiag or eBPF)
 - `bettercap`, `ettercap` (MITM detection, ARP/DNS spoof monitoring via anomaly events)
 
 **DNS & Application Layer:**
@@ -51,12 +49,11 @@ Kali Linux provides an extensive suite of network diagnostics, reconnaissance, a
 **Audit Outcome for libnetdiag:**
 - Current coverage (ping/arping/traceroute/dnsdiag skeletons + IPv6/NDP + MTR helpers + eBPF accessors) addresses the majority of L2/L3 fault detection and dialectic verification use-cases.
 - Kali tools excel at *active* scanning and *deep decoding*; libnetdiag remains the pure passive state-machine consumer of raw buffers from those tools or kernel (io_uring, libpcap, eBPF).
-- Recommended future P4 items (only if domain need arises; each requires new ADR + dialectic tests):
+- Recommended future P4 items (1-4 implemented) (only if domain need arises; each requires new ADR + dialectic tests):
   - Enhanced ARP recon state machine (netdiscover/arp-scan patterns: passive listen + active sweep, vendor fingerprinting)
   - Nmap-style probe/response parsers for common scan types (SYN/ACK, UDP, ICMP echo/timestamp)
   - Anomaly/spoof detection events (duplicate ARP, unexpected DNS replies, latency outliers)
   - iperf3-like bandwidth probe skeleton (if active generation supported)
-  - Tighter integration notes for tshark/pcap feeds and Kali harness examples
 - All additions must preserve syscall-free, callback-free, ring-buffer event model and strict `-Wall -Werror` build.
 - Use Kali primarily for: developing richer test vectors/fuzz corpora, validating event emission against real captures, and as a reference for edge-device troubleshooting workflows on OpenWRT/Debian.
 

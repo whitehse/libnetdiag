@@ -25,7 +25,11 @@ typedef enum {
     NETDIAG_EVENT_ARP_DUPLICATE,
     NETDIAG_EVENT_FAULT_DETECTED,
     NETDIAG_EVENT_TRACEROUTE_HOP,
-    NETDIAG_EVENT_DNS_REPLY
+    NETDIAG_EVENT_DNS_REPLY,
+    NETDIAG_EVENT_ARP_ANOMALY,
+    NETDIAG_EVENT_ARP_SPOOF,
+    NETDIAG_EVENT_DNS_SPOOF,
+    NETDIAG_EVENT_BW_SAMPLE
 } netdiag_event_type_t;
 
 typedef struct {
@@ -131,6 +135,20 @@ int dnsdiag_process(dnsdiag_ctx *ctx, uint64_t now_ms);
 int dnsdiag_next_event(dnsdiag_ctx *ctx, netdiag_event_t *event);
 int dnsdiag_get_stats(dnsdiag_ctx *ctx, netdiag_stats_t *stats);
 const char *dnsdiag_event_to_string(const netdiag_event_t *ev, char *buf, size_t max);
+
+/* Enhanced ARP Recon (P4 - ADR 004) */
+typedef struct arprecon_ctx arprecon_ctx;
+
+arprecon_ctx *arprecon_create(netdiag_role_t role);
+arprecon_ctx *arprecon_create_with_config(netdiag_role_t role, const netdiag_config_t *config);
+void arprecon_destroy(arprecon_ctx *ctx);
+void arprecon_reset(arprecon_ctx *ctx);
+int arprecon_feed_input(arprecon_ctx *ctx, const uint8_t *data, size_t len);
+int arprecon_feed_input_with_ts(arprecon_ctx *ctx, const uint8_t *data, size_t len, uint64_t now_ms);
+int arprecon_process(arprecon_ctx *ctx, uint64_t now_ms);
+int arprecon_next_event(arprecon_ctx *ctx, netdiag_event_t *event);
+int arprecon_get_stats(arprecon_ctx *ctx, netdiag_stats_t *stats);
+const char *arprecon_event_to_string(const netdiag_event_t *ev, char *buf, size_t max);
 
 #ifdef __cplusplus
 }
