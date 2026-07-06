@@ -56,10 +56,37 @@ int dnsdiag_feed_input(dnsdiag_ctx *ctx, const uint8_t *d, size_t l) {
 
 int dnsdiag_feed_input_with_ts(dnsdiag_ctx *ctx, const uint8_t *d, size_t l, uint64_t ts) {
     struct dnsdiag_ctx *c = (struct dnsdiag_ctx *)ctx;
-    if (!c || !d) return -1;
-    (void)l;
+    if (!c || !d || l < 12) return -1; /* minimal DNS header after UDP */
     if (ts) c->send_ts = ts;
-    /* Placeholder: real DNS query/response parsing here */
+
+    /* L3 DNS: UDP/53 response (QR bit set) or query */
+    /* Simplified: check for common DNS response pattern (ID match + flags) */
+    uint16_t flags = (d[2]<<8) | d[3];
+    uint8_t rcode = flags & 0x000F;
+    if (rcode != 0 && c->role == NETDIAG_ROLE_REQUESTER) {
+        netdiag_event_t ev = {.type=NETDIAG_EVENT_FAULT_DETECTED, .seq=c->last_seq};
+        snprintf(ev.reason, sizeof(ev.reason), "DNS rcode=%u", rcode);
+        qpush(c, &ev);
+        c->timeouts++;
+        c->waiting = 0;
+        return 0;
+    }
+    if ((flags & 0x8000) && c->role == NETDIAG_ROLE_REQUESTER) { /* response */
+        netdiag_event_t ev = {.type = NETDIAG_EVENT_DNS_REPLY, .seq = c->last_seq};
+        uint32_t lat = 5;
+        if (c->send_ts && ts) lat = (ts > c->send_ts) ? (uint32_t)(ts - c->send_ts) : 0;
+        ev.latency_ms = lat;
+        qpush(c, &ev);
+        c->replies++;
+        c->sum_lat += lat; c->count_lat++;
+        if (lat > c->max_lat) c->max_lat = lat;
+        if (lat < c->min_lat) c->min_lat = lat;
+        c->waiting = 0;
+    } else if (c->role == NETDIAG_ROLE_RESPONDER) {
+        c->last_seq = (d[0]<<8) | d[1]; /* DNS ID */
+        if (ts) c->send_ts = ts;
+        c->waiting = 1;
+    }
     return 0;
 }
 

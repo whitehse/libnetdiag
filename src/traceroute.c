@@ -66,14 +66,47 @@ int traceroute_feed_input(traceroute_ctx *ctx, const uint8_t *d, size_t l) {
 
 int traceroute_feed_input_with_ts(traceroute_ctx *ctx, const uint8_t *d, size_t l, uint64_t ts) {
     struct traceroute_ctx *c = (struct traceroute_ctx *)ctx;
-    if (!c || !d) return -1;
-    (void)l;
+    if (!c || !d || l < 20) return -1;
     if (ts) c->send_ts = ts;
-    /* Placeholder: real ICMP time-exceeded / port-unreachable + hop extraction */
+
+    /* L3 traceroute: ICMP Time Exceeded (11) / Dest Unreachable (3) responses */
+    uint8_t icmp_type = d[20];
+    if ((icmp_type == 11 || icmp_type == 3) && c->role == NETDIAG_ROLE_REQUESTER) {
+        netdiag_event_t ev = {.type = NETDIAG_EVENT_TRACEROUTE_HOP, .seq = c->last_seq};
+        uint32_t lat = 5;
+        if (c->send_ts && ts) lat = (ts > c->send_ts) ? (uint32_t)(ts - c->send_ts) : 0;
+        ev.latency_ms = lat;
+        int hop = (c->last_seq % MAX_HOPS);
+        qpush(c, &ev);
+        c->replies++;
+        c->sum_lat += lat; c->count_lat++;
+        if (lat > c->max_lat) c->max_lat = lat;
+        if (lat < c->min_lat) c->min_lat = lat;
+        traceroute_record_hop(ctx, hop, 1, lat);
+        c->waiting = 0;
+    } else if (icmp_type == 8 && c->role == NETDIAG_ROLE_RESPONDER) {
+        c->last_seq = (d[28]<<8) | d[29];
+        if (ts) c->send_ts = ts;
+        c->waiting = 1;
+    }
     return 0;
 }
 
 int traceroute_process(traceroute_ctx *ctx, uint64_t ts) {
+    struct traceroute_ctx *c = (struct traceroute_ctx *)ctx;
+    if (!c) return -1;
+    if (c->waiting && c->send_ts && ts > c->send_ts + 1000) {
+        netdiag_event_t ev = {.type=NETDIAG_EVENT_TRACEROUTE_HOP, .seq=c->last_seq};
+        snprintf(ev.reason, sizeof(ev.reason), "traceroute timeout");
+        qpush(c, &ev);
+        c->timeouts++;
+        int hop = (c->last_seq % MAX_HOPS);
+        traceroute_record_hop(ctx, hop, 0, 0);
+        c->waiting = 0;
+    }
+    return 0;
+}
+int traceroute_process_orig(traceroute_ctx *ctx, uint64_t ts) {
     struct traceroute_ctx *c = (struct traceroute_ctx *)ctx;
     if (!c) return -1;
     (void)ts;

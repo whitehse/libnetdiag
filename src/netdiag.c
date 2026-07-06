@@ -22,6 +22,7 @@ static void qinit(struct netdiag_ctx *c, size_t s) {
     c->min_lat = ~0U;
 }
 
+static int qpush(struct netdiag_ctx *c, const netdiag_event_t *e) __attribute__((unused));
 static int qpush(struct netdiag_ctx *c, const netdiag_event_t *e) {
     if (c->cnt >= c->qsz) return -1;
     c->q[c->tail] = *e; c->tail = (c->tail + 1) % c->qsz; c->cnt++; return 0;
