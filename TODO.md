@@ -17,8 +17,8 @@ All changes follow AGENTS.md invariants, pass existing tests, and were ad-hoc ve
 - [x] `nl80211_parse.h` / `nl80211_parse.c` — Wi-Fi station telemetry interface + synthetic frames
 - [x] Full CTA_* nested attribute decode for IPv4 ORIG/REPLY tuples (`test_nfct_cta`)
 - [x] IPv6 CTA tuples + DESTROY-with-id events + forensics_tuple_v6
-- [ ] Full nl80211 nested attribute decode for station dump replies
-- [ ] Dialectic tests for nfct + nl80211 synthetic and captured corpora
+- [x] Full nl80211 nested attribute decode for station dump replies (`test_nl80211_attrs`)
+- [x] Dialectic tests for nfct + nl80211 synthetic and nested attr corpora
 - [ ] Document CPE daemon feed pattern in ARCHITECTURE.md
 
 **Prior core (P0–P3)**: complete and production-ready.

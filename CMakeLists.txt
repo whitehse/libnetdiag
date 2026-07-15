@@ -58,6 +58,10 @@ add_executable(netdiag_nfct_cta_test tests/test_nfct_cta.c)
 target_link_libraries(netdiag_nfct_cta_test PRIVATE netdiag)
 add_test(NAME netdiag_nfct_cta COMMAND netdiag_nfct_cta_test)
 
+add_executable(netdiag_nl80211_attrs_test tests/test_nl80211_attrs.c)
+target_link_libraries(netdiag_nl80211_attrs_test PRIVATE netdiag)
+add_test(NAME netdiag_nl80211_attrs COMMAND netdiag_nl80211_attrs_test)
+
 # Examples (optional, for future liburing/epoll harnesses)
 option(BUILD_EXAMPLES "Build example programs" OFF)
 if(BUILD_EXAMPLES)
