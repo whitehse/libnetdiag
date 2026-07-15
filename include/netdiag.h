@@ -150,6 +150,13 @@ int arprecon_next_event(arprecon_ctx *ctx, netdiag_event_t *event);
 int arprecon_get_stats(arprecon_ctx *ctx, netdiag_stats_t *stats);
 const char *arprecon_event_to_string(const netdiag_event_t *ev, char *buf, size_t max);
 
+/*
+ * CPE forensics modules (separate headers, same static library):
+ *   #include "nfct.h"          — Netfilter conntrack event parser
+ *   #include "nl80211_parse.h" — nl80211 station telemetry parser
+ * Both remain syscall-free: caller owns netlink sockets and feeds buffers.
+ */
+
 #ifdef __cplusplus
 }
 #endif

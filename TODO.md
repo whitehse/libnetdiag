@@ -11,7 +11,16 @@
 
 All changes follow AGENTS.md invariants, pass existing tests, and were ad-hoc verified at each step.
 
-**No remaining items.** The library is production-ready.
+## App-driven extensions (netforensics / OpenWrt CPE)
+
+- [x] `nfct.h` / `nfct.c` — conntrack event parser interface + synthetic frames
+- [x] `nl80211_parse.h` / `nl80211_parse.c` — Wi-Fi station telemetry interface + synthetic frames
+- [x] Full CTA_* nested attribute decode for IPv4 ORIG/REPLY tuples (`test_nfct_cta`)
+- [ ] Full nl80211 nested attribute decode for station dump replies
+- [ ] Dialectic tests for nfct + nl80211 synthetic and captured corpora
+- [ ] Document CPE daemon feed pattern in ARCHITECTURE.md
+
+**Prior core (P0–P3)**: complete and production-ready.
 
 ## Kali Linux Audit & Additional Verification Techniques (P4 Considerations)
 

@@ -65,5 +65,12 @@ This separation keeps the core library portable and pure while enabling powerful
 - Complements LuaJIT FFI work (arping.lua, bpftool.lua) by providing a C foundation that Lua code can call into. All public functions (create*, feed*, process, next_event, get_stats, event_to_string) are FFI-friendly (opaque pointers, simple scalars, no bitfields).
 - Can be used alongside librest/shaggy for reporting faults to central systems, or libharness for AI-driven analysis loops.
 
+## Application consumers
+
+- **`~/apps/netforensics`** — OpenWrt CPE forensics daemon (design: `~/new_design3.txt`).
+  Uses `nfct.h` (conntrack NEW/DESTROY → NAT 5-tuple) and `nl80211_parse.h`
+  (station RSSI/MCS/retries). The app owns `AF_NETLINK` sockets; the library only
+  parses caller-supplied buffers.
+
 ## Future Evolution
 New utilities are added as additional `.c`/`.h` pairs inside the library or, when they represent entirely new protocols, as new sibling repositories following the same bootstrap pattern. All decisions that affect the shared event model or eBPF accessor API must be recorded in ADRs before implementation.

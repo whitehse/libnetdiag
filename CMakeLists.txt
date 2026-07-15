@@ -11,7 +11,16 @@ else()
     add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 endif()
 
-add_library(netdiag STATIC src/netdiag.c src/ping.c src/arping.c src/traceroute.c src/dnsdiag.c src/arprecon.c)
+add_library(netdiag STATIC
+    src/netdiag.c
+    src/ping.c
+    src/arping.c
+    src/traceroute.c
+    src/dnsdiag.c
+    src/arprecon.c
+    src/nfct.c
+    src/nl80211_parse.c
+)
 
 target_include_directories(netdiag PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -44,6 +53,10 @@ add_test(NAME netdiag_dialectic_traceroute COMMAND netdiag_dialectic_traceroute_
 add_executable(netdiag_dialectic_dnsdiag_test tests/test_dialectic_dnsdiag.c)
 target_link_libraries(netdiag_dialectic_dnsdiag_test PRIVATE netdiag)
 add_test(NAME netdiag_dialectic_dnsdiag COMMAND netdiag_dialectic_dnsdiag_test)
+
+add_executable(netdiag_nfct_cta_test tests/test_nfct_cta.c)
+target_link_libraries(netdiag_nfct_cta_test PRIVATE netdiag)
+add_test(NAME netdiag_nfct_cta COMMAND netdiag_nfct_cta_test)
 
 # Examples (optional, for future liburing/epoll harnesses)
 option(BUILD_EXAMPLES "Build example programs" OFF)
