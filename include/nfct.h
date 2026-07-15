@@ -35,13 +35,17 @@ typedef enum {
     NFCT_EVENT_PARTIAL       /**< Recognized header but incomplete attrs. */
 } nfct_event_type_t;
 
+#define NFCT_IPV6_LEN 16
+
 /**
  * Minimal NAT 5-tuple for forensics correlation.
  * LAN side = original (pre-NAT); WAN side = reply (post-NAT) when present.
+ * IPv4 uses host-order uint32; IPv6 uses network-order 16-byte arrays.
  */
 typedef struct {
     nfct_event_type_t type;
     uint8_t  protocol;       /**< IPPROTO_* */
+    /* IPv4 */
     uint32_t lan_src_ip;     /**< Host order IPv4. */
     uint16_t lan_src_port;
     uint32_t lan_dst_ip;
@@ -50,11 +54,21 @@ typedef struct {
     uint16_t wan_src_port;
     uint32_t wan_dst_ip;
     uint16_t wan_dst_port;
+    /* IPv6 (valid when is_ipv6) */
+    uint8_t  lan_src_ip6[NFCT_IPV6_LEN];
+    uint8_t  lan_dst_ip6[NFCT_IPV6_LEN];
+    uint8_t  wan_src_ip6[NFCT_IPV6_LEN];
+    uint8_t  wan_dst_ip6[NFCT_IPV6_LEN];
     uint64_t mark;           /**< Optional connmark. */
     uint32_t zone;
+    uint32_t id;             /**< CTA_ID when present (DESTROY correlation). */
+    uint32_t status;         /**< CTA_STATUS bitfield when present. */
     int      has_lan;
     int      has_wan;
-    int      is_ipv6;        /**< 1 if addresses are truncated IPv6 stubs (v0). */
+    int      has_id;
+    int      has_status;
+    int      is_ipv6;        /**< 1 = IPv6 tuples filled. */
+    int      is_destroy;     /**< 1 = DESTROY event (alias of type for callers). */
     char     reason[96];     /**< Error / partial reason. */
 } nfct_event_t;
 
@@ -80,13 +94,24 @@ int nfct_next_event(nfct_ctx *ctx, nfct_event_t *event);
 const char *nfct_event_to_string(const nfct_event_t *ev, char *buf, size_t max);
 
 /**
- * Extract only the forensics 5-tuple fields into out (lan + wan + protocol).
+ * Extract IPv4 forensics 5-tuple (lan + wan + protocol).
  * Returns 1 if lan+protocol present, 0 if incomplete, negative on error.
  */
 int nfct_event_forensics_tuple(const nfct_event_t *ev,
                                uint32_t *lan_src_ip, uint16_t *lan_src_port,
                                uint32_t *wan_src_ip, uint16_t *wan_src_port,
                                uint8_t *protocol);
+
+/**
+ * Extract IPv6 forensics endpoints (16-byte addresses, network order).
+ * Returns 1 if lan IPv6 + protocol present, 0 incomplete, negative on error.
+ */
+int nfct_event_forensics_tuple_v6(const nfct_event_t *ev,
+                                  uint8_t lan_src[NFCT_IPV6_LEN],
+                                  uint16_t *lan_src_port,
+                                  uint8_t wan_src[NFCT_IPV6_LEN],
+                                  uint16_t *wan_src_port,
+                                  uint8_t *protocol);
 
 #ifdef __cplusplus
 }

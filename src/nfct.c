@@ -19,6 +19,7 @@ enum {
     CTA_TUPLE_REPLY = 2,
     CTA_STATUS = 3,
     CTA_MARK = 8,
+    CTA_ID = 12,
     CTA_ZONE = 18
 };
 
@@ -126,10 +127,13 @@ static uint32_t ipv4_from_nlattr(const uint8_t *p)
 typedef struct {
     uint32_t src_ip;
     uint32_t dst_ip;
+    uint8_t  src_ip6[16];
+    uint8_t  dst_ip6[16];
     uint16_t src_port;
     uint16_t dst_port;
     uint8_t  proto;
     int      has_ip;
+    int      has_ip6;
     int      has_proto;
     int      has_ports;
 } tuple_t;
@@ -155,6 +159,12 @@ static void parse_tuple_ip(const uint8_t *data, uint16_t len, tuple_t *t)
         } else if (atype == CTA_IP_V4_DST && plen >= 4) {
             t->dst_ip = ipv4_from_nlattr(payload);
             t->has_ip = 1;
+        } else if (atype == CTA_IP_V6_SRC && plen >= 16) {
+            memcpy(t->src_ip6, payload, 16);
+            t->has_ip6 = 1;
+        } else if (atype == CTA_IP_V6_DST && plen >= 16) {
+            memcpy(t->dst_ip6, payload, 16);
+            t->has_ip6 = 1;
         }
         aligned = (alen + 3u) & ~3u;
         off += aligned;
@@ -246,6 +256,12 @@ static void parse_ct_attrs(const uint8_t *data, size_t len, nfct_event_t *ev)
             ev->mark = rd32_be(payload);
         } else if (atype == CTA_ZONE && plen >= 2) {
             ev->zone = rd16_be(payload);
+        } else if (atype == CTA_ID && plen >= 4) {
+            ev->id = rd32_be(payload);
+            ev->has_id = 1;
+        } else if (atype == CTA_STATUS && plen >= 4) {
+            ev->status = rd32_be(payload);
+            ev->has_status = 1;
         }
         aligned = (alen + 3u) & ~3u;
         off += aligned;
@@ -264,6 +280,12 @@ static void parse_ct_attrs(const uint8_t *data, size_t len, nfct_event_t *ev)
         ev->lan_src_ip = orig.src_ip;
         ev->lan_dst_ip = orig.dst_ip;
         ev->has_lan = 1;
+        ev->is_ipv6 = 0;
+    } else if (orig.has_ip6) {
+        memcpy(ev->lan_src_ip6, orig.src_ip6, 16);
+        memcpy(ev->lan_dst_ip6, orig.dst_ip6, 16);
+        ev->has_lan = 1;
+        ev->is_ipv6 = 1;
     }
     if (orig.has_ports) {
         ev->lan_src_port = orig.src_port;
@@ -279,6 +301,11 @@ static void parse_ct_attrs(const uint8_t *data, size_t len, nfct_event_t *ev)
         ev->wan_src_ip = reply.dst_ip;
         ev->wan_dst_ip = reply.src_ip;
         ev->has_wan = 1;
+    } else if (reply.has_ip6) {
+        memcpy(ev->wan_src_ip6, reply.dst_ip6, 16);
+        memcpy(ev->wan_dst_ip6, reply.src_ip6, 16);
+        ev->has_wan = 1;
+        ev->is_ipv6 = 1;
     }
     if (reply.has_ports) {
         ev->wan_src_port = reply.dst_port;
@@ -387,15 +414,18 @@ static void parse_netlink(struct nfct_ctx *c, const uint8_t *data, size_t len)
             uint8_t subsys = (uint8_t)((nl_type >> 8) & 0xff);
             uint8_t msg = (uint8_t)(nl_type & 0xff);
             (void)subsys;
-            if (msg == IPCTNL_MSG_CT_NEW) {
-                /* NEW events also used for updates depending on flags */
-                if (nl_flags & 0x200 /* NLM_F_CREATE heuristic */) {
+            if (msg == IPCTNL_MSG_CT_DELETE) {
+                ev.type = NFCT_EVENT_DESTROY;
+                ev.is_destroy = 1;
+            } else if (msg == IPCTNL_MSG_CT_NEW) {
+                /* CREATE flag (NLM_F_CREATE=0x400) → NEW; else UPDATE-ish */
+                if (nl_flags & 0x400) {
                     ev.type = NFCT_EVENT_NEW;
+                } else if (nl_flags & 0x100 /* NLM_F_REPLACE-ish */) {
+                    ev.type = NFCT_EVENT_UPDATE;
                 } else {
                     ev.type = NFCT_EVENT_NEW;
                 }
-            } else if (msg == IPCTNL_MSG_CT_DELETE) {
-                ev.type = NFCT_EVENT_DESTROY;
             } else {
                 ev.type = NFCT_EVENT_UPDATE;
             }
@@ -409,11 +439,17 @@ static void parse_netlink(struct nfct_ctx *c, const uint8_t *data, size_t len)
             parse_ct_attrs(data + attr_off, attr_len, &ev);
         }
 
+        /* DESTROY may only carry ID; still emit as DESTROY for correlation */
         if (!ev.has_lan && !ev.has_wan) {
-            ev.type = NFCT_EVENT_PARTIAL;
-            snprintf(ev.reason, sizeof(ev.reason),
-                     "nlmsg type=%u len=%u (no IPv4 tuples)",
-                     (unsigned)nl_type, (unsigned)nl_len);
+            if (ev.is_destroy && ev.has_id) {
+                snprintf(ev.reason, sizeof(ev.reason),
+                         "DESTROY id=%u (no tuples)", (unsigned)ev.id);
+            } else {
+                ev.type = NFCT_EVENT_PARTIAL;
+                snprintf(ev.reason, sizeof(ev.reason),
+                         "nlmsg type=%u len=%u (no address tuples)",
+                         (unsigned)nl_type, (unsigned)nl_len);
+            }
         }
         (void)qpush(c, &ev);
         off += (nl_len + 3u) & ~3u;
@@ -459,19 +495,28 @@ const char *nfct_event_to_string(const nfct_event_t *ev, char *buf, size_t max)
     case NFCT_EVENT_PARTIAL: t = "PARTIAL"; break;
     default: t = "NONE"; break;
     }
-    snprintf(buf, max,
-             "nfct %s proto=%u lan=%u.%u.%u.%u:%u wan=%u.%u.%u.%u:%u",
-             t, (unsigned)ev->protocol,
-             (unsigned)((ev->lan_src_ip >> 24) & 0xFF),
-             (unsigned)((ev->lan_src_ip >> 16) & 0xFF),
-             (unsigned)((ev->lan_src_ip >> 8) & 0xFF),
-             (unsigned)(ev->lan_src_ip & 0xFF),
-             (unsigned)ev->lan_src_port,
-             (unsigned)((ev->wan_src_ip >> 24) & 0xFF),
-             (unsigned)((ev->wan_src_ip >> 16) & 0xFF),
-             (unsigned)((ev->wan_src_ip >> 8) & 0xFF),
-             (unsigned)(ev->wan_src_ip & 0xFF),
-             (unsigned)ev->wan_src_port);
+    if (ev->is_ipv6) {
+        snprintf(buf, max,
+                 "nfct %s proto=%u v6 lan_port=%u wan_port=%u id=%u%s",
+                 t, (unsigned)ev->protocol,
+                 (unsigned)ev->lan_src_port, (unsigned)ev->wan_src_port,
+                 (unsigned)ev->id, ev->is_destroy ? " DESTROY" : "");
+    } else {
+        snprintf(buf, max,
+                 "nfct %s proto=%u lan=%u.%u.%u.%u:%u wan=%u.%u.%u.%u:%u id=%u",
+                 t, (unsigned)ev->protocol,
+                 (unsigned)((ev->lan_src_ip >> 24) & 0xFF),
+                 (unsigned)((ev->lan_src_ip >> 16) & 0xFF),
+                 (unsigned)((ev->lan_src_ip >> 8) & 0xFF),
+                 (unsigned)(ev->lan_src_ip & 0xFF),
+                 (unsigned)ev->lan_src_port,
+                 (unsigned)((ev->wan_src_ip >> 24) & 0xFF),
+                 (unsigned)((ev->wan_src_ip >> 16) & 0xFF),
+                 (unsigned)((ev->wan_src_ip >> 8) & 0xFF),
+                 (unsigned)(ev->wan_src_ip & 0xFF),
+                 (unsigned)ev->wan_src_port,
+                 (unsigned)ev->id);
+    }
     return buf;
 }
 
@@ -483,6 +528,9 @@ int nfct_event_forensics_tuple(const nfct_event_t *ev,
     if (!ev) {
         return -1;
     }
+    if (ev->is_ipv6) {
+        return 0;
+    }
     if (lan_src_ip) {
         *lan_src_ip = ev->lan_src_ip;
     }
@@ -491,6 +539,37 @@ int nfct_event_forensics_tuple(const nfct_event_t *ev,
     }
     if (wan_src_ip) {
         *wan_src_ip = ev->wan_src_ip;
+    }
+    if (wan_src_port) {
+        *wan_src_port = ev->wan_src_port;
+    }
+    if (protocol) {
+        *protocol = ev->protocol;
+    }
+    return (ev->has_lan && ev->protocol) ? 1 : 0;
+}
+
+int nfct_event_forensics_tuple_v6(const nfct_event_t *ev,
+                                  uint8_t lan_src[NFCT_IPV6_LEN],
+                                  uint16_t *lan_src_port,
+                                  uint8_t wan_src[NFCT_IPV6_LEN],
+                                  uint16_t *wan_src_port,
+                                  uint8_t *protocol)
+{
+    if (!ev) {
+        return -1;
+    }
+    if (!ev->is_ipv6) {
+        return 0;
+    }
+    if (lan_src) {
+        memcpy(lan_src, ev->lan_src_ip6, NFCT_IPV6_LEN);
+    }
+    if (lan_src_port) {
+        *lan_src_port = ev->lan_src_port;
+    }
+    if (wan_src) {
+        memcpy(wan_src, ev->wan_src_ip6, NFCT_IPV6_LEN);
     }
     if (wan_src_port) {
         *wan_src_port = ev->wan_src_port;
